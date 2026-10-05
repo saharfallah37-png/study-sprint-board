@@ -24,9 +24,46 @@ document.querySelector('#app').innerHTML = `
         aria-label="ابزارهای برد"
         class="mb-6 rounded-2xl bg-white p-5 shadow-sm"
       >
-        <p class="text-sm leading-7 text-slate-500">
-          در مراحل بعد، جستجو و فیلتر اولویت را اینجا اضافه می‌کنیم.
-        </p>
+        <div class="grid grid-cols-1 items-end gap-4 md:grid-cols-3">
+
+          <div>
+            <label for="search-input" class="mb-2 block text-sm">
+              جستجو در عنوان یا موضوع
+            </label>
+
+            <input
+              id="search-input"
+              type="search"
+              placeholder="مثلاً جاوااسکریپت"
+              class="w-full rounded-lg border border-slate-300 p-3 focus:outline-2 focus:outline-violet-600"
+            >
+          </div>
+
+          <div>
+            <label for="priority-filter" class="mb-2 block text-sm">
+              فیلتر اولویت
+            </label>
+
+            <select
+              id="priority-filter"
+              class="w-full rounded-lg border border-slate-300 bg-white p-3 focus:outline-2 focus:outline-violet-600"
+            >
+              <option value="all">همه</option>
+              <option value="low">کم</option>
+              <option value="medium">متوسط</option>
+              <option value="high">زیاد</option>
+            </select>
+          </div>
+
+          <button
+            id="clear-filters"
+            type="button"
+            class="rounded-lg bg-slate-200 px-5 py-3 text-slate-700 hover:bg-slate-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600"
+          >
+            پاک کردن فیلترها
+          </button>
+
+        </div>
       </section>
 
       <section class="mb-6 rounded-2xl bg-white p-5 shadow-sm">
@@ -154,7 +191,7 @@ document.querySelector('#app').innerHTML = `
 `;
 
 // داده‌های اولیه
-let tasks = [
+const starterTasks = [
   {
     id: 1,
     title: 'تمرین آرایه‌ها',
@@ -199,6 +236,79 @@ let tasks = [
   },
 ];
 
+const STORAGE_KEY = 'study-sprint-board-tasks-v1';
+
+function copyStarterTasks() {
+  return starterTasks.map(function (task) {
+    return { ...task };
+  });
+}
+
+function loadTasks() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    // فقط وقتی هیچ داده‌ای ذخیره نشده، نمونه‌ها را برمی‌گردانیم
+    if (saved === null) {
+      return copyStarterTasks();
+    }
+
+    const parsedTasks = JSON.parse(saved);
+
+    if (!Array.isArray(parsedTasks)) {
+      throw new Error('Saved data must be an array.');
+    }
+
+    const validTasks = parsedTasks.every(function (task) {
+      return (
+        task !== null &&
+        typeof task === 'object' &&
+        (
+          (typeof task.id === 'string' && task.id.trim() !== '') ||
+          (typeof task.id === 'number' && Number.isFinite(task.id))
+        ) &&
+        typeof task.title === 'string' &&
+        task.title.trim() !== '' &&
+        typeof task.subject === 'string' &&
+        task.subject.trim() !== '' &&
+        ['low', 'medium', 'high'].includes(task.priority) &&
+        ['todo', 'doing', 'done'].includes(task.status)
+      );
+    });
+
+    const ids = parsedTasks.map(function (task) {
+      return task === null ? null : String(task.id);
+    });
+
+    if (!validTasks || new Set(ids).size !== parsedTasks.length) {
+      throw new Error('Saved tasks are invalid.');
+    }
+
+    return parsedTasks;
+  } catch (error) {
+    console.warn('بازیابی اطلاعات ممکن نشد:', error);
+
+    return copyStarterTasks();
+  }
+}
+
+let tasks = loadTasks();
+
+function saveTasks() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    return true;
+  } catch (error) {
+    console.warn('ذخیره اطلاعات ممکن نشد:', error);
+
+    window.alert(
+      'ذخیره در مرورگر انجام نشد. تغییرات فعلاً فقط در همین صفحه باقی می‌مانند.'
+    );
+
+    return false;
+  }
+}
+
 const priorityLabels = {
   low: 'کم',
   medium: 'متوسط',
@@ -212,6 +322,9 @@ const priorityStyles = {
 };
 
 // دسترسی به فرم و ورودی‌ها
+const searchInput = document.querySelector('#search-input');
+const priorityFilter = document.querySelector('#priority-filter');
+const clearFiltersButton = document.querySelector('#clear-filters');
 const taskForm = document.querySelector('#task-form');
 const titleInput = document.querySelector('#task-title');
 const subjectInput = document.querySelector('#task-subject');
@@ -305,7 +418,7 @@ function createTaskCard(task) {
 
   statusSelect.addEventListener('change', function () {
     task.status = statusSelect.value;
-
+    saveTasks()
     renderBoard();
 
     document.getElementById(`status-${task.id}`).focus();
@@ -365,7 +478,9 @@ function createTaskCard(task) {
 
     tasks = tasks.filter(function (item) {
       return item.id !== task.id;
-    });
+    }); 
+    
+    saveTasks()
 
     if (editingTaskId === task.id) {
       resetTaskForm();
@@ -388,29 +503,53 @@ function createTaskCard(task) {
   return card;
 }
 
-// نمایش کارت‌ها در ستون مناسب
 function renderBoard() {
   const statuses = ['todo', 'doing', 'done'];
+
+  const query = searchInput.value.trim().toLowerCase();
+  const selectedPriority = priorityFilter.value;
 
   statuses.forEach(function (status) {
     const column = document.querySelector(`#${status}-list`);
 
     column.replaceChildren();
 
+    // همهٔ کارهای این ستون، قبل از اعمال فیلتر
     const columnTasks = tasks.filter(function (task) {
       return task.status === status;
     });
 
-    if (columnTasks.length === 0) {
+    // کارهایی که هم با جستجو و هم با اولویت مطابقت دارند
+    const visibleTasks = columnTasks.filter(function (task) {
+      const matchesSearch =
+        task.title.toLowerCase().includes(query) ||
+        task.subject.toLowerCase().includes(query);
+
+      const matchesPriority =
+        selectedPriority === 'all' ||
+        task.priority === selectedPriority;
+
+      return matchesSearch && matchesPriority;
+    });
+
+    if (visibleTasks.length === 0) {
       const message = document.createElement('p');
-      message.className = 'py-8 text-center text-sm text-slate-500';
-      message.textContent = 'هنوز کاری در این ستون نیست.';
+
+      message.className =
+        'py-8 text-center text-sm leading-7 text-slate-500';
+
+      if (columnTasks.length === 0) {
+        message.textContent = 'هنوز کاری در این ستون نیست.';
+      } else {
+        message.textContent =
+          'کاری مطابق با جستجو و فیلتر فعلی پیدا نشد.';
+      }
 
       column.append(message);
       return;
     }
 
-    columnTasks.forEach(function (task) {
+    visibleTasks.forEach(function (task) {
       const card = createTaskCard(task);
       column.append(card);
     });
@@ -485,12 +624,57 @@ taskForm.addEventListener('submit', function (event) {
     successMessage = 'کار جدید اضافه شد.';
   }
 
-  renderBoard();
-  resetTaskForm();
+const savedSuccessfully = saveTasks();
 
-  formMessage.textContent = successMessage;
-  titleInput.focus();
+renderBoard();
+resetTaskForm();
+
+formMessage.textContent = savedSuccessfully
+  ? successMessage
+  : 'تغییر انجام شد، اما در مرورگر ذخیره نشد.';
+
+titleInput.focus();
+});
+searchInput.addEventListener('input', function () {
+  renderBoard();
 });
 
+priorityFilter.addEventListener('change', function () {
+  renderBoard();
+});
+
+clearFiltersButton.addEventListener('click', function () {
+  searchInput.value = '';
+  priorityFilter.value = 'all';
+
+  renderBoard();
+  searchInput.focus();
+}); 
+const resetBoardButton = document.querySelector('#reset-board');
+
+resetBoardButton.addEventListener('click', function () {
+  const confirmed = window.confirm(
+    'همهٔ کارهای فعلی با شش کار نمونه جایگزین شوند؟'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  tasks = copyStarterTasks();
+
+  const savedSuccessfully = saveTasks();
+
+  resetTaskForm();
+
+  searchInput.value = '';
+  priorityFilter.value = 'all';
+
+  renderBoard();
+
+  formMessage.textContent = savedSuccessfully
+    ? 'برد به کارهای نمونه بازنشانی شد.'
+    : 'برد بازنشانی شد، اما در مرورگر ذخیره نشد.';
+});
 // نمایش اولیهٔ برد
 renderBoard();
