@@ -21,6 +21,78 @@ document.querySelector('#app').innerHTML = `
       </header>
 
       <section
+        aria-labelledby="dashboard-heading"
+        class="mb-6 rounded-2xl bg-white p-5 shadow-sm"
+      >
+        <h2 id="dashboard-heading" class="mb-5 text-lg font-bold">
+          پیشرفت مطالعه
+        </h2>
+
+        <dl class="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div class="rounded-xl bg-violet-50 p-4">
+            <dt class="text-sm text-violet-800">کل کارها</dt>
+            <dd id="total-count" class="mt-2 text-2xl font-bold">
+              ۰
+            </dd>
+          </div>
+
+          <div class="rounded-xl bg-slate-100 p-4">
+            <dt class="text-sm text-slate-700">برای انجام</dt>
+            <dd id="todo-count" class="mt-2 text-2xl font-bold">
+              ۰
+            </dd>
+          </div>
+
+          <div class="rounded-xl bg-amber-50 p-4">
+            <dt class="text-sm text-amber-800">در حال انجام</dt>
+            <dd id="doing-count" class="mt-2 text-2xl font-bold">
+              ۰
+            </dd>
+          </div>
+
+          <div class="rounded-xl bg-emerald-50 p-4">
+            <dt class="text-sm text-emerald-800">انجام‌شده</dt>
+            <dd id="done-count" class="mt-2 text-2xl font-bold">
+              ۰
+            </dd>
+          </div>
+        </dl>
+
+        <div class="mt-6">
+          <div class="mb-3 flex items-center justify-between gap-4">
+            <span id="progress-label" class="text-sm font-bold">
+              درصد تکمیل
+            </span>
+
+            <span
+              id="progress-text"
+              class="font-bold text-violet-700"
+            >
+              ۰٪
+            </span>
+          </div>
+
+          <div
+            id="progress-bar"
+            role="progressbar"
+            aria-labelledby="progress-label"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+            class="h-3 overflow-hidden rounded-full bg-slate-200"
+          >
+            <div
+              id="progress-fill"
+              class="h-full w-0 rounded-full bg-violet-600"
+            ></div>
+          </div>
+
+          <p class="mt-3 text-sm leading-7 text-slate-500">
+            آمار مربوط به همهٔ کارهاست؛ جستجو و فیلتر روی آن اثر ندارند.
+          </p>
+        </div>
+      </section>      
+      <section
         aria-label="ابزارهای برد"
         class="mb-6 rounded-2xl bg-white p-5 shadow-sm"
       >
@@ -503,7 +575,51 @@ function createTaskCard(task) {
   return card;
 }
 
+function updateDashboard() {
+  const total = tasks.length;
+
+  const todoCount = tasks.filter(function (task) {
+    return task.status === 'todo';
+  }).length;
+
+  const doingCount = tasks.filter(function (task) {
+    return task.status === 'doing';
+  }).length;
+
+  const doneCount = tasks.filter(function (task) {
+    return task.status === 'done';
+  }).length;
+
+  const percentage = total === 0
+    ? 0
+    : Math.round((doneCount / total) * 100);
+
+  document.querySelector('#total-count').textContent =
+    total.toLocaleString('fa-IR');
+
+  document.querySelector('#todo-count').textContent =
+    todoCount.toLocaleString('fa-IR');
+
+  document.querySelector('#doing-count').textContent =
+    doingCount.toLocaleString('fa-IR');
+
+  document.querySelector('#done-count').textContent =
+    doneCount.toLocaleString('fa-IR');
+
+  document.querySelector('#progress-text').textContent =
+    `${percentage.toLocaleString('fa-IR')}٪`;
+
+  document.querySelector('#progress-fill').style.width =
+    `${percentage}%`;
+
+  document.querySelector('#progress-bar').setAttribute(
+    'aria-valuenow',
+    String(percentage)
+  );
+}
+
 function renderBoard() {
+  updateDashboard();
   const statuses = ['todo', 'doing', 'done'];
 
   const query = searchInput.value.trim().toLowerCase();
